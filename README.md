@@ -1,30 +1,22 @@
 # 📝 SR-MEMO (Personal Note Server)
 
-Firebase Realtime Database 연동 기반의 개인 메모 시스템입니다. GUI 대쉬보드와 CLI(curl) 환경을 모두 지원하여 어떤 환경에서든 빠른 메모 조회 및 관리가 가능합니다.
-
-## 🚀 주요 기능
-- **멀티 디바이스 지원**: 브라우저(대쉬보드) 및 터미널(curl) 동시 지원
-- **Firebase 연동**: 데이터 유실 걱정 없는 클라우드 저장 방식
-- **동적 섹션 관리**: 섹션(태그) 생성, 수정, 삭제 가능
-- **CLI 관리**: GUI 없이 터미널만으로 메모 추가/삭제 가능 (API Key 인증)
-
----
+Firebase Realtime Database 연동 기반의 개인 메모 시스템입니다. GUI 대쉬보드와 CLI(curl) 환경을 모두 지원합니다.
 
 ## 🛠️ 설치 및 배포 (Docker)
 
-가장 빠른 방법은 도커를 사용하는 것입니다.
+가장 안전한 배포 방식은 도커 이미지 외부에서 Firebase 키 파일을 주입하는 것입니다.
 
 ```bash
 docker run -d \
   -p 1111:1111 \
   -p 2096:2096 \
+  -v /path/to/your/firebase-key.json:/usr/src/app/firebase-key.json:ro \
   --name sr-memo \
   --restart always \
   silverruler/sr-memo:latest
 ```
 
-- **API Port**: 1111 (조회 및 CLI 관리)
-- **UI Port**: 2096 (웹 대쉬보드)
+> **주의**: `/path/to/your/firebase-key.json` 부분을 실제 키 파일이 위치한 절대 경로로 수정하세요.
 
 ---
 
@@ -32,37 +24,28 @@ docker run -d \
 
 ### 1. 웹 대쉬보드 (관리용)
 - **주소**: `http://YOUR_SERVER_IP:2096`
-- **로그인**: `ID: aa` / `PW: bb` (Firebase `/auth` 노드에서 수정 가능)
-- **기능**: 섹션 관리, 메모 작성/삭제, 실시간 동기화
+- **로그인**: Firebase `/auth` 노드에 설정한 ID/PW를 사용하세요.
 
 ### 2. 터미널 조회 (curl)
 로그인 없이 빠르게 리스트를 확인하거나 상세 내용을 볼 수 있습니다.
 
-- **섹션 리스트 확인**:
-  ```bash
-  curl http://YOUR_SERVER_IP:1111/command
-  ```
-- **특정 메모 상세 확인**:
-  ```bash
-  curl http://YOUR_SERVER_IP:1111/command/1
-  ```
+- **섹션 리스트 확인**: `curl http://YOUR_SERVER_IP:1111/command`
+- **특정 메모 상세 확인**: `curl http://YOUR_SERVER_IP:1111/command/1`
 
 ### 3. CLI를 통한 메모 관리 (로그인 불가 시)
-대쉬보드에 접속할 수 없는 환경에서는 `X-SR-TOKEN` 헤더(비밀번호)를 사용하여 관리 기능을 수행합니다.
+`X-SR-TOKEN` 헤더에 비밀번호를 넣어서 사용합니다.
 
-- **메모 추가 (POST)**:
+- **메모 추가**:
   ```bash
   curl -X POST \
-       -H "X-SR-TOKEN: bb" \
+       -H "X-SR-TOKEN: YOUR_PASSWORD" \
        -H "Content-Type: application/json" \
-       -d '{"content":"터미널에서 작성한 메모"}' \
+       -d '{"content":"메모 내용"}' \
        http://YOUR_SERVER_IP:1111/api/memos/command
   ```
-- **메모 삭제 (DELETE)**:
+- **메모 삭제**:
   ```bash
-  curl -X DELETE \
-       -H "X-SR-TOKEN: bb" \
-       http://YOUR_SERVER_IP:1111/api/memos/command/1
+  curl -X DELETE -H "X-SR-TOKEN: YOUR_PASSWORD" http://YOUR_SERVER_IP:1111/api/memos/command/1
   ```
 
 ---
@@ -70,7 +53,7 @@ docker run -d \
 ## 🔧 빌드 및 개발
 
 ### 환경 설정
-`firebase-key.json` 파일이 프로젝트 루트에 존재해야 합니다.
+`firebase-key.json` 파일이 프로젝트 루트에 존재해야 합니다. (이미지 빌드 시에는 보안을 위해 제외됩니다.)
 
 ### 로컬 실행
 ```bash
@@ -78,14 +61,9 @@ npm install
 node index.js
 ```
 
-### 도커 빌드
-```bash
-docker build -t silverruler/sr-memo .
-```
-
 ---
 
 ## 🔐 보안 안내
-- 이 프로젝트는 개인용으로 설계되었습니다.
-- `firebase-key.json`은 절대로 외부에 노출되지 않도록 주의하세요.
-- 기본 비밀번호(`bb`)는 Firebase 콘솔의 `/auth/pw`에서 즉시 변경하는 것을 권장합니다.
+- **도커 이미지 보안**: 현재 도커 허브에 배포된 이미지에는 인증 키가 포함되어 있지 않아 안전합니다. 실행 시 반드시 `-v` 옵션으로 키를 주입해야 합니다.
+- **Firebase 권장 규칙**: 콘솔에서 `.read`, `.write` 규칙을 모두 `false`로 설정하여 외부 접근을 차단하세요.
+- **비밀번호 관리**: Firebase 콘솔의 `/auth` 노드에서 수시로 로그인 정보를 변경하는 것을 권장합니다.

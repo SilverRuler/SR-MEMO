@@ -10,9 +10,7 @@ const app = express();
 const apiPort = 1111;
 const uiPort = 2096;
 
-const AUTH_ID = 'aa';
-const AUTH_PW = 'bb'; // 이 값이 CLI의 API TOKEN 역할도 수행합니다.
-
+// Firebase 설정
 const keyPath = path.resolve(__dirname, 'firebase-key.json');
 const serviceAccount = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
 
@@ -28,18 +26,28 @@ const fbDB = admin.database();
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(session({
-  secret: 'sr-memo-cli-ready-key',
+  secret: 'sr-memo-secure-session-key',
   resave: false,
   saveUninitialized: true,
   cookie: { maxAge: 24 * 60 * 60 * 1000 }
 }));
 
-// 인증 미들웨어 (세션 또는 API 헤더 체크)
-const authRequired = (req, res, next) => {
+// Firebase에서 실시간으로 인증 정보 가져오기
+const getAuthData = async () => {
+  const snapshot = await fbDB.ref('/auth').once('value');
+  return snapshot.val() || { id: 'admin', pw: 'password' }; // 기본값 (실제로는 Firebase 데이터 사용)
+};
+
+// 인증 미들웨어 (CLI 토큰 포함)
+const authRequired = async (req, res, next) => {
+  if (req.session.loggedIn) return next();
+  
   const token = req.headers['x-sr-token'];
-  if (req.session.loggedIn || token === AUTH_PW) {
-    return next();
+  if (token) {
+    const auth = await getAuthData();
+    if (token === auth.pw) return next();
   }
+  
   if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Unauthorized' });
   res.redirect('/login');
 };
@@ -70,13 +78,12 @@ app.get('/login', (req, res) => {
 
 app.post('/login', async (req, res) => {
   const { id, pw } = req.body;
-  const snapshot = await fbDB.ref('/auth').once('value');
-  const auth = snapshot.val();
+  const auth = await getAuthData();
   if (auth && id === auth.id && pw === auth.pw) {
     req.session.loggedIn = true;
     res.redirect('/');
   } else {
-    res.send('<script>alert("FAIL");location.href="/login";</script>');
+    res.send('<script>alert("Login Failed");location.href="/login";</script>');
   }
 });
 
@@ -85,11 +92,11 @@ app.get('/logout', (req, res) => {
   res.redirect('/login');
 });
 
-// 관리 API (인증 필요 - 헤더 또는 세션)
 app.get('/api/data', authRequired, async (req, res) => res.json(await getDBData()));
 
 app.post('/api/sections', authRequired, async (req, res) => {
   const { name } = req.body;
+  if (!name) return res.status(400).send('Name required');
   const db = await getDBData();
   const key = name.toLowerCase().trim();
   if (db.sections[key]) return res.status(400).send('Exists');
@@ -100,12 +107,11 @@ app.post('/api/sections', authRequired, async (req, res) => {
 
 app.delete('/api/sections/:key', authRequired, async (req, res) => {
   const db = await getDBData();
-  delete db.sections[req.params.key];
+  if (db.sections) delete db.sections[req.params.key];
   await saveDBData(db);
   res.json({ success: true });
 });
 
-// 메모 추가 (CLI에서도 사용 가능)
 app.post('/api/memos/:key', authRequired, async (req, res) => {
   const db = await getDBData();
   const section = db.sections[req.params.key];
@@ -117,7 +123,6 @@ app.post('/api/memos/:key', authRequired, async (req, res) => {
   res.json({ success: true, id });
 });
 
-// 메모 삭제 (CLI에서도 사용 가능)
 app.delete('/api/memos/:key/:id', authRequired, async (req, res) => {
   const db = await getDBData();
   const section = db.sections[req.params.key];
@@ -128,7 +133,6 @@ app.delete('/api/memos/:key/:id', authRequired, async (req, res) => {
   } else res.status(404).send('Not found');
 });
 
-// 터미널 전용 조회 (1111 포트 주력)
 app.get('/:section', async (req, res) => {
   const ua = req.headers['user-agent'] || '';
   if (ua.toLowerCase().includes('curl') || ua.toLowerCase().includes('powershell')) {
@@ -153,7 +157,7 @@ app.get('/:section/:id', async (req, res) => {
 });
 
 app.get('/', authRequired, (req, res) => {
-  res.send(`<!DOCTYPE html><html><head><title>SR Server</title>
+  const html = `<!DOCTYPE html><html><head><title>SR Server</title>
   <style>
     :root{--p:#1a73e8;--bg:#f8f9fa;} body{font-family:sans-serif;background:var(--bg);margin:0;display:flex;height:100vh;overflow:hidden;}
     .side{width:260px;background:#fff;border-right:1px solid #ddd;display:flex;flex-direction:column;}
@@ -185,10 +189,12 @@ app.get('/', authRequired, (req, res) => {
       async function load(){
         const r=await fetch('/api/data'); db=await r.json();
         const list=document.getElementById('s-list'); list.innerHTML='';
-        Object.keys(db.sections).forEach(k=>{
-          const d=document.createElement('div'); d.className='s-item'+(cur===k?' active':'');
-          d.innerText=k.toUpperCase(); d.onclick=()=>select(k); list.appendChild(d);
-        });
+        if(db.sections){
+          Object.keys(db.sections).forEach(k=>{
+            const d=document.createElement('div'); d.className='s-item'+(cur===k?' active':'');
+            d.innerText=k.toUpperCase(); d.onclick=()=>select(k); list.appendChild(d);
+          });
+        }
         if(cur) renderM();
       }
       function select(k){
@@ -216,7 +222,8 @@ app.get('/', authRequired, (req, res) => {
       async function delM(id){ if(!confirm('Delete?'))return; await fetch('/api/memos/'+cur+'/'+id,{method:'DELETE'}); load(); }
       function esc(t){ const d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
       document.getElementById('input').onkeydown=(e)=>{ if(e.ctrlKey&&e.key==='Enter') saveM(); }; load();
-    </script></body></html>`);
+    </script></body></html>`;
+  res.send(html);
 });
 
 http.createServer(app).listen(apiPort, '0.0.0.0', () => console.log('API ON: ' + apiPort));
