@@ -5,6 +5,7 @@ const path = require('path');
 const http = require('http');
 const session = require('express-session');
 const admin = require('firebase-admin');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const apiPort = 1111;
@@ -23,31 +24,47 @@ if (!admin.apps.length) {
 
 const fbDB = admin.database();
 
+// --- 보안 설정: Rate Limiting ---
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15분
+  max: 100, // IP당 최대 100번 요청
+  message: "Too many requests, please try again later."
+});
+
+const loginLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1시간
+  max: 10, // 로그인 시도는 1시간에 10번만 가능
+  message: "Too many login attempts, please try again after an hour."
+});
+
+app.use(limiter);
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
+
+// 세션 비밀키를 Firebase나 랜덤 생성 방식으로 변경
 app.use(session({
-  secret: 'sr-memo-secure-session-key',
+  secret: 'SR_' + (serviceAccount.private_key_id || 'default_secret_123'),
   resave: false,
-  saveUninitialized: true,
-  cookie: { maxAge: 24 * 60 * 60 * 1000 }
+  saveUninitialized: false,
+  cookie: { 
+    maxAge: 24 * 60 * 60 * 1000,
+    httpOnly: true, // XSS 방지
+    sameSite: 'lax'
+  }
 }));
 
-// Firebase에서 실시간으로 인증 정보 가져오기
 const getAuthData = async () => {
   const snapshot = await fbDB.ref('/auth').once('value');
-  return snapshot.val() || { id: 'admin', pw: 'password' }; // 기본값 (실제로는 Firebase 데이터 사용)
+  return snapshot.val();
 };
 
-// 인증 미들웨어 (CLI 토큰 포함)
 const authRequired = async (req, res, next) => {
   if (req.session.loggedIn) return next();
-  
   const token = req.headers['x-sr-token'];
   if (token) {
     const auth = await getAuthData();
-    if (token === auth.pw) return next();
+    if (auth && token === auth.pw) return next();
   }
-  
   if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Unauthorized' });
   res.redirect('/login');
 };
@@ -71,12 +88,12 @@ app.get('/login', (req, res) => {
     '.box{background:#fff;padding:40px;border-radius:12px;box-shadow:0 4px 15px rgba(0,0,0,0.1);width:320px;text-align:center;}' +
     'input{width:100%;padding:12px;margin-bottom:15px;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;}' +
     'button{width:100%;padding:12px;background:#1a73e8;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:bold;}' +
-    '</style></head><body><div class="box"><h1>SR Memo</h1><form method="POST">' +
+    '</style></head><body><div class="box"><h1>SR Memo</h1><form method="POST" action="/login">' +
     '<input name="id" placeholder="ID" required><input type="password" name="pw" placeholder="PW" required>' +
     '<button type="submit">Login</button></form></div></body></html>');
 });
 
-app.post('/login', async (req, res) => {
+app.post('/login', loginLimiter, async (req, res) => {
   const { id, pw } = req.body;
   const auth = await getAuthData();
   if (auth && id === auth.id && pw === auth.pw) {
@@ -157,7 +174,7 @@ app.get('/:section/:id', async (req, res) => {
 });
 
 app.get('/', authRequired, (req, res) => {
-  const html = `<!DOCTYPE html><html><head><title>SR Server</title>
+  const html = `<!DOCTYPE html><html><head><title>SR Server</title><meta charset="utf-8">
   <style>
     :root{--p:#1a73e8;--bg:#f8f9fa;} body{font-family:sans-serif;background:var(--bg);margin:0;display:flex;height:100vh;overflow:hidden;}
     .side{width:260px;background:#fff;border-right:1px solid #ddd;display:flex;flex-direction:column;}
@@ -178,16 +195,16 @@ app.get('/', authRequired, (req, res) => {
     .btn-d{background:#fce8e6;color:#d93025;}
   </style></head>
   <body>
-    <div class="side"><div class="side-h"><h2>SR Server</h2><a href="/logout">Logout</a></div>
+    <div class="side"><div class="side-h"><h2>SR Server</h2><a href="/logout" style="font-size:0.8rem;color:#666;">Logout</a></div>
     <div class="s-list" id="s-list"></div><div style="padding:15px;"><button class="btn btn-p" style="width:100%" onclick="addS()">+ New Section</button></div></div>
-    <div class="main"><div class="main-h"><h1 id="title">Select Section</h1>
+    <div class="main"><div class="main-h"><h1 id="title" style="margin:0;font-size:1.4rem;">Select Section</h1>
     <div id="acts" style="display:none;gap:10px;"><button class="btn btn-d" onclick="delS()">Delete Section</button></div></div>
     <div class="content"><div id="ui" style="display:none"><div style="max-width:800px;margin:0 auto;">
     <textarea id="input" placeholder="Ctrl+Enter to Save"></textarea><button class="btn btn-p" onclick="saveM()">Save Memo</button></div><div id="list"></div></div></div></div>
     <script>
       let cur=null; let db=null;
       async function load(){
-        const r=await fetch('/api/data'); db=await r.json();
+        const r=await fetch('/api/data'); if(!r.ok) return; db=await r.json();
         const list=document.getElementById('s-list'); list.innerHTML='';
         if(db.sections){
           Object.keys(db.sections).forEach(k=>{

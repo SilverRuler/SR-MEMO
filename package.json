@@ -13,6 +13,7 @@
   "dependencies": {
     "body-parser": "^2.2.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.5.1",
     "express-session": "^1.19.0",
     "firebase-admin": "^13.9.0",
     "pm2": "^7.0.1",
