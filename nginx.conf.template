@@ -27,11 +27,11 @@ http {
     real_ip_header CF-Connecting-IP;
 
     upstream memo_api {
-        server memo-server:3000;
+        server memo-server:6000;
     }
 
     upstream memo_ui {
-        server memo-server:3001;
+        server memo-server:6001;
     }
 
     # UI Dashboard (2096)
