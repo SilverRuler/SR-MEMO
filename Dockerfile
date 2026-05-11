@@ -12,7 +12,7 @@ RUN npm install --production
 COPY . .
 
 # API 및 UI 포트 노출
-EXPOSE 1111 2096
+EXPOSE 6000 6001
 
 # 앱 실행
 CMD [ "node", "index.js" ]

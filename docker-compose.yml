@@ -7,8 +7,8 @@ services:
     volumes:
       - ./firebase-key.json:/usr/src/app/firebase-key.json:ro
     expose:
-      - "3000"
-      - "3001"
+      - "6000"
+      - "6001"
 
   nginx:
     image: nginx:alpine
