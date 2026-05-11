@@ -8,8 +8,8 @@ const admin = require('firebase-admin');
 const rateLimit = require('express-rate-limit');
 
 const app = express();
-const apiPort = 1111;
-const uiPort = 2096;
+const apiPort = 3000;
+const uiPort = 3001;
 
 // Firebase 설정
 const keyPath = path.resolve(__dirname, 'firebase-key.json');
