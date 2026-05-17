@@ -260,12 +260,23 @@ app.get('/', authRequired, (req, res) => {
             const d=document.createElement('div'); d.className='s-item'+(cur===k?' active':'');
             d.style.display='flex'; d.style.justifyContent='space-between'; d.style.alignItems='center';
             
-            const txt=document.createElement('span'); txt.innerText=k.toUpperCase(); txt.style.flex='1'; txt.onclick=()=>select(k);
+            const txt=document.createElement('span'); 
+            txt.innerText=k.toUpperCase(); txt.style.flex='1'; 
+            txt.style.cursor='pointer';
+            txt.onclick=(e)=>{ e.stopPropagation(); select(k); };
             d.appendChild(txt);
             
             const bBox=document.createElement('div'); bBox.style.display='flex'; bBox.style.gap='2px';
-            bBox.innerHTML='<button class="btn btn-c" style="padding:2px 5px;font-size:0.6rem;" onclick="moveS(\''+k+'\',-1)">▲</button>' +
-                           '<button class="btn btn-c" style="padding:2px 5px;font-size:0.6rem;" onclick="moveS(\''+k+'\',1)">▼</button>';
+            
+            const upBtn=document.createElement('button');
+            upBtn.className='btn btn-c'; upBtn.style.padding='2px 5px'; upBtn.style.fontSize='0.6rem';
+            upBtn.innerText='▲'; upBtn.onclick=(e)=>{ e.stopPropagation(); moveS(k,-1); };
+            
+            const dnBtn=document.createElement('button');
+            dnBtn.className='btn btn-c'; dnBtn.style.padding='2px 5px'; dnBtn.style.fontSize='0.6rem';
+            dnBtn.innerText='▼'; dnBtn.onclick=(e)=>{ e.stopPropagation(); moveS(k,1); };
+            
+            bBox.appendChild(upBtn); bBox.appendChild(dnBtn);
             d.appendChild(bBox);
             list.appendChild(d);
           });
