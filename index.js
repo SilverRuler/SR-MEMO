@@ -206,6 +206,7 @@ app.get('/', authRequired, (req, res) => {
     .btn{border:none;border-radius:6px;cursor:pointer;padding:8px 15px;font-weight:bold;}
     .btn-p{background:var(--p);color:#fff;}
     .btn-d{background:#fce8e6;color:#d93025;}
+    .btn-c{background:#e8f0fe;color:var(--p);margin-right:5px;}
     #mobile-menu{display:none;padding:10px;background:#fff;border-bottom:1px solid #ddd;justify-content:space-between;align-items:center;}
 
     @media(max-width:768px){
@@ -254,7 +255,9 @@ app.get('/', authRequired, (req, res) => {
         const ms=db.sections[cur].memos || [];
         ms.slice().reverse().forEach(m=>{
           const d=document.createElement('div'); d.className='m-item';
-          d.innerHTML='<div class="m-h"><span>#'+m.id+' | '+m.date+'</span><button class="btn btn-d" style="padding:4px 8px;font-size:0.7rem;" onclick="delM('+m.id+')">Del</button></div>' +
+          d.innerHTML='<div class="m-h"><span>#'+m.id+' | '+m.date+'</span><div>' +
+                      '<button class="btn btn-c" style="padding:4px 8px;font-size:0.7rem;" onclick="copyM('+m.id+')">Copy</button>' +
+                      '<button class="btn btn-d" style="padding:4px 8px;font-size:0.7rem;" onclick="delM('+m.id+')">Del</button></div></div>' +
                       '<div class="m-b">'+esc(m.content)+'</div>';
           l.appendChild(d);
         });
@@ -267,6 +270,11 @@ app.get('/', authRequired, (req, res) => {
         document.getElementById('input').value=''; load();
       }
       async function delM(id){ if(!confirm('Delete?'))return; await fetch('/api/memos/'+cur+'/'+id,{method:'DELETE'}); load(); }
+      function copyM(id){
+        const m = db.sections[cur].memos.find(x => x.id == id);
+        if(!m) return;
+        navigator.clipboard.writeText(m.content).then(() => alert('Copied to clipboard!')).catch(() => alert('Failed to copy'));
+      }
       function esc(t){ const d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
       document.getElementById('input').onkeydown=(e)=>{ if(e.ctrlKey&&e.key==='Enter') saveM(); }; load();
     </script></body></html>`;
