@@ -264,8 +264,8 @@ app.get('/', authRequired, (req, res) => {
             d.appendChild(txt);
             
             const bBox=document.createElement('div'); bBox.style.display='flex'; bBox.style.gap='2px';
-            bBox.innerHTML=`<button class="btn btn-c" style="padding:2px 5px;font-size:0.6rem;" onclick="moveS('${k}',-1)">▲</button>` +
-                           `<button class="btn btn-c" style="padding:2px 5px;font-size:0.6rem;" onclick="moveS('${k}',1)">▼</button>`;
+            bBox.innerHTML='<button class="btn btn-c" style="padding:2px 5px;font-size:0.6rem;" onclick="moveS(\''+k+'\',-1)">▲</button>' +
+                           '<button class="btn btn-c" style="padding:2px 5px;font-size:0.6rem;" onclick="moveS(\''+k+'\',1)">▼</button>';
             d.appendChild(bBox);
             list.appendChild(d);
           });
