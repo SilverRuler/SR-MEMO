@@ -18,7 +18,7 @@ services:
       - "8443:8443"
       - "2096:2096"
     environment:
-      - DOMAIN=YOUR_PUBLIC_IP
+      - DOMAIN=memo.silverruler.xyz
     command: /bin/sh -c "envsubst '$$DOMAIN' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && exec nginx -g 'daemon off;'"
     volumes:
       - ./nginx.conf.template:/etc/nginx/nginx.conf.template:ro

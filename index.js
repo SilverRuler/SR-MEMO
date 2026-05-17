@@ -126,13 +126,28 @@ app.post('/api/sections', authRequired, async (req, res) => {
   const key = name.toLowerCase().trim();
   if (db.sections[key]) return res.status(400).send('Exists');
   db.sections[key] = { title: key, memos: [] };
+  
+  if (!db.sectionOrder) db.sectionOrder = Object.keys(db.sections).filter(k => k !== key);
+  db.sectionOrder.push(key);
+  
+  await saveDBData(db);
+  res.json({ success: true });
+});
+
+app.put('/api/sections/order', authRequired, async (req, res) => {
+  const { order } = req.body;
+  if (!order || !Array.isArray(order)) return res.status(400).send('Order array required');
+  const db = await getDBData();
+  db.sectionOrder = order;
   await saveDBData(db);
   res.json({ success: true });
 });
 
 app.delete('/api/sections/:key', authRequired, async (req, res) => {
   const db = await getDBData();
-  if (db.sections) delete db.sections[req.params.key];
+  const key = req.params.key;
+  if (db.sections) delete db.sections[key];
+  if (db.sectionOrder) db.sectionOrder = db.sectionOrder.filter(k => k !== key);
   await saveDBData(db);
   res.json({ success: true });
 });
@@ -237,12 +252,40 @@ app.get('/', authRequired, (req, res) => {
         const r=await fetch('/api/data'); if(!r.ok) return; db=await r.json();
         const list=document.getElementById('s-list'); list.innerHTML='';
         if(db.sections){
-          Object.keys(db.sections).forEach(k=>{
+          let keys = db.sectionOrder || Object.keys(db.sections);
+          keys = keys.filter(k => db.sections[k]);
+          Object.keys(db.sections).forEach(k => { if(!keys.includes(k)) keys.push(k); });
+          
+          keys.forEach(k=>{
             const d=document.createElement('div'); d.className='s-item'+(cur===k?' active':'');
-            d.innerText=k.toUpperCase(); d.onclick=()=>select(k); list.appendChild(d);
+            d.style.display='flex'; d.style.justifyContent='space-between'; d.style.alignItems='center';
+            
+            const txt=document.createElement('span'); txt.innerText=k.toUpperCase(); txt.style.flex='1'; txt.onclick=()=>select(k);
+            d.appendChild(txt);
+            
+            const bBox=document.createElement('div'); bBox.style.display='flex'; bBox.style.gap='2px';
+            bBox.innerHTML=`<button class="btn btn-c" style="padding:2px 5px;font-size:0.6rem;" onclick="moveS('${k}',-1)">▲</button>` +
+                           `<button class="btn btn-c" style="padding:2px 5px;font-size:0.6rem;" onclick="moveS('${k}',1)">▼</button>`;
+            d.appendChild(bBox);
+            list.appendChild(d);
           });
         }
         if(cur) renderM();
+      }
+      async function moveS(k, dir){
+        let keys = db.sectionOrder || Object.keys(db.sections);
+        keys = keys.filter(key => db.sections[key]);
+        Object.keys(db.sections).forEach(key => { if(!keys.includes(key)) keys.push(key); });
+        const idx = keys.indexOf(k);
+        const newIdx = idx + dir;
+        if(newIdx < 0 || newIdx >= keys.length) return;
+        const temp = keys[idx]; keys[idx] = keys[newIdx]; keys[newIdx] = temp;
+        await fetch('/api/sections/order', {
+          method: 'PUT',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ order: keys })
+        });
+        load();
       }
       function select(k){
         cur=k; document.getElementById('title').innerText=k.toUpperCase();
