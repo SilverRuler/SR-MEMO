@@ -239,7 +239,7 @@ app.get('/', authRequired, (req, res) => {
       <h2 style="margin:0;font-size:1.2rem;">SR-MEMO</h2>
       <button class="btn btn-p" onclick="toggleMenu()">Menu</button>
     </div>
-    <div class="side" id="sidebar"><div class="side-h"><h2>SR-MEMO</h2><a href="/logout" style="font-size:0.8rem;color:#666;">Logout</a></div>
+    <div class="side open" id="sidebar"><div class="side-h"><h2>SR-MEMO</h2><a href="/logout" style="font-size:0.8rem;color:#666;">Logout</a></div>
     <div class="s-list" id="s-list"></div><div style="padding:15px;"><button class="btn btn-p" style="width:100%" onclick="addS()">+ New Section</button></div></div>
     <div class="main"><div class="main-h"><h1 id="title" style="margin:0;font-size:1.4rem;">Select Section</h1>
     <div id="acts" style="display:none;gap:10px;"><button class="btn btn-d" onclick="delS()">Delete Section</button></div></div>
