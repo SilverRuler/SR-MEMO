@@ -143,6 +143,20 @@ app.put('/api/sections/order', authRequired, async (req, res) => {
   res.json({ success: true });
 });
 
+app.put('/api/memos/:key/:id', authRequired, async (req, res) => {
+  const db = await getDBData();
+  const section = db.sections[req.params.key];
+  if (section && section.memos) {
+    const memo = section.memos.find(m => m.id == req.params.id);
+    if (memo) {
+      memo.content = req.body.content;
+      memo.date = new Date().toLocaleString();
+      await saveDBData(db);
+      res.json({ success: true });
+    } else res.status(404).send('Memo Not Found');
+  } else res.status(404).send('Section Not Found');
+});
+
 app.delete('/api/sections/:key', authRequired, async (req, res) => {
   const db = await getDBData();
   const key = req.params.key;
@@ -242,11 +256,12 @@ app.get('/', authRequired, (req, res) => {
     <div class="side open" id="sidebar"><div class="side-h"><h2>SR-MEMO</h2><a href="/logout" style="font-size:0.8rem;color:#666;">Logout</a></div>
     <div class="s-list" id="s-list"></div><div style="padding:15px;"><button class="btn btn-p" style="width:100%" onclick="addS()">+ New Section</button></div></div>
     <div class="main"><div class="main-h"><h1 id="title" style="margin:0;font-size:1.4rem;">Select Section</h1>
+    <input type="text" id="searchInput" placeholder="Search Memos..." style="margin-left: 20px; flex: 1; max-width: 300px; padding: 8px; border: 1px solid #ddd; border-radius: 8px;" onkeyup="if(event.key==='Enter') searchM()">
     <div id="acts" style="display:none;gap:10px;"><button class="btn btn-d" onclick="delS()">Delete Section</button></div></div>
     <div class="content"><div id="ui" style="display:none"><div style="max-width:800px;margin:0 auto;">
-    <textarea id="input" placeholder="Ctrl+Enter to Save"></textarea><button class="btn btn-p" onclick="saveM()">Save Memo</button></div><div id="list"></div></div></div></div>
+    <textarea id="input" placeholder="Ctrl+Enter to Save"></textarea><button id="saveBtn" class="btn btn-p" onclick="saveM()">Save Memo</button></div><div id="list"></div></div></div></div>
     <script>
-      let cur=null; let db=null;
+      let cur=null; let db=null; let editId=null;
       function toggleMenu(){ document.getElementById('sidebar').classList.toggle('open'); }
       async function load(){
         const r=await fetch('/api/data'); if(!r.ok) return; db=await r.json();
@@ -301,8 +316,30 @@ app.get('/', authRequired, (req, res) => {
       function select(k){
         cur=k; document.getElementById('title').innerText=k.toUpperCase();
         document.getElementById('acts').style.display='flex'; document.getElementById('ui').style.display='block';
+        document.getElementById('input').style.display='block'; document.getElementById('saveBtn').style.display='inline-block';
+        editId = null; document.getElementById('saveBtn').innerText = 'Save Memo';
         if(window.innerWidth <= 768) toggleMenu();
         load();
+      }
+      function searchM() {
+        const q = document.getElementById('searchInput').value.trim().toLowerCase();
+        if(!q) return;
+        cur = null; document.getElementById('title').innerText = 'SEARCH RESULTS: ' + q;
+        document.getElementById('acts').style.display='none'; document.getElementById('ui').style.display='block';
+        document.getElementById('input').style.display='none'; document.getElementById('saveBtn').style.display='none';
+        const l=document.getElementById('list'); l.innerHTML='';
+        Object.keys(db.sections).forEach(secKey => {
+          const s = db.sections[secKey];
+          (s.memos || []).slice().reverse().forEach(m => {
+            if (m.content.toLowerCase().includes(q)) {
+              const d=document.createElement('div'); d.className='m-item';
+              d.innerHTML='<div class="m-h"><span>['+s.title.toUpperCase()+'] #'+m.id+' | '+m.date+'</span><div>' +
+                          '<button class="btn btn-c" style="padding:4px 8px;font-size:0.7rem;" onclick="copyM(\''+secKey+'\','+m.id+')">Copy</button>' +
+                          '</div></div><div class="m-b">'+esc(m.content)+'</div>';
+              l.appendChild(d);
+            }
+          });
+        });
       }
       function renderM(){
         const l=document.getElementById('list'); l.innerHTML='';
@@ -310,7 +347,8 @@ app.get('/', authRequired, (req, res) => {
         ms.slice().reverse().forEach(m=>{
           const d=document.createElement('div'); d.className='m-item';
           d.innerHTML='<div class="m-h"><span>#'+m.id+' | '+m.date+'</span><div>' +
-                      '<button class="btn btn-c" style="padding:4px 8px;font-size:0.7rem;" onclick="copyM('+m.id+')">Copy</button>' +
+                      '<button class="btn btn-c" style="padding:4px 8px;font-size:0.7rem;" onclick="editM('+m.id+')">Edit</button>' +
+                      '<button class="btn btn-c" style="padding:4px 8px;font-size:0.7rem;" onclick="copyM(\''+cur+'\','+m.id+')">Copy</button>' +
                       '<button class="btn btn-d" style="padding:4px 8px;font-size:0.7rem;" onclick="delM('+m.id+')">Del</button></div></div>' +
                       '<div class="m-b">'+esc(m.content)+'</div>';
           l.appendChild(d);
@@ -320,12 +358,24 @@ app.get('/', authRequired, (req, res) => {
       async function delS(){ if(!confirm('Delete?'))return; await fetch('/api/sections/'+cur,{method:'DELETE'}); cur=null; document.getElementById('ui').style.display='none'; document.getElementById('acts').style.display='none'; load(); }
       async function saveM(){
         const c=document.getElementById('input').value.trim(); if(!c)return;
-        await fetch('/api/memos/'+cur,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:c})});
+        if(editId) {
+          await fetch('/api/memos/'+cur+'/'+editId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:c})});
+          editId=null; document.getElementById('saveBtn').innerText='Save Memo';
+        } else {
+          await fetch('/api/memos/'+cur,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:c})});
+        }
         document.getElementById('input').value=''; load();
       }
-      async function delM(id){ if(!confirm('Delete?'))return; await fetch('/api/memos/'+cur+'/'+id,{method:'DELETE'}); load(); }
-      function copyM(id){
+      function editM(id){
         const m = db.sections[cur].memos.find(x => x.id == id);
+        if(!m) return;
+        document.getElementById('input').value = m.content;
+        editId = id; document.getElementById('saveBtn').innerText = 'Update Memo';
+      }
+      async function delM(id){ if(!confirm('Delete?'))return; await fetch('/api/memos/'+cur+'/'+id,{method:'DELETE'}); load(); }
+      function copyM(secKey, id){
+        if(id === undefined) { id = secKey; secKey = cur; }
+        const m = db.sections[secKey].memos.find(x => x.id == id);
         if(!m) return;
         navigator.clipboard.writeText(m.content).then(() => alert('Copied to clipboard!')).catch(() => alert('Failed to copy'));
       }
