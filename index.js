@@ -305,6 +305,7 @@ app.get('/', authRequired, (req, res) => {
           });
         }
         if(cur) renderM();
+        else searchM();
       }
       async function moveS(k, dir){
         let keys = db.sectionOrder || Object.keys(db.sections);
@@ -343,8 +344,10 @@ app.get('/', authRequired, (req, res) => {
             if (m.content && m.content.toLowerCase().includes(q)) {
               const d=document.createElement('div'); d.className='m-item';
               d.innerHTML='<div class="m-h"><span>['+(s.title?s.title.toUpperCase():secKey)+'] #'+m.id+' | '+m.date+'</span><div>' +
+                          '<button class="btn btn-c" style="padding:4px 8px;font-size:0.7rem;" onclick="editM(\\''+secKey+'\\','+m.id+')">Edit</button>' +
                           '<button class="btn btn-c" style="padding:4px 8px;font-size:0.7rem;" onclick="copyM(\\''+secKey+'\\','+m.id+')">Copy</button>' +
-                          '</div></div><div class="m-b">'+esc(m.content)+'</div>';
+                          '<button class="btn btn-d" style="padding:4px 8px;font-size:0.7rem;" onclick="delM(\\''+secKey+'\\','+m.id+')">Del</button></div></div>' +
+                          '<div class="m-b">'+esc(m.content)+'</div>';
               l.appendChild(d);
             }
           });
@@ -367,22 +370,34 @@ app.get('/', authRequired, (req, res) => {
       async function delS(){ if(!confirm('Delete?'))return; await fetch('/api/sections/'+cur,{method:'DELETE'}); cur=null; document.getElementById('ui').style.display='none'; document.getElementById('acts').style.display='none'; load(); }
       async function saveM(){
         const c=document.getElementById('input').value.trim(); if(!c)return;
+        const targetSec = (typeof editSec !== 'undefined' && editSec) ? editSec : cur;
         if(editId) {
-          await fetch('/api/memos/'+cur+'/'+editId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:c})});
-          editId=null; document.getElementById('saveBtn').innerText='Save Memo';
+          await fetch('/api/memos/'+targetSec+'/'+editId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:c})});
+          editId=null; if(typeof editSec !== 'undefined') editSec=null; document.getElementById('saveBtn').innerText='Save Memo';
         } else {
-          await fetch('/api/memos/'+cur,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:c})});
+          await fetch('/api/memos/'+targetSec,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:c})});
         }
-        document.getElementById('input').value=''; load();
+        document.getElementById('input').value=''; 
+        if(!cur) { document.getElementById('input').style.display='none'; document.getElementById('saveBtn').style.display='none'; }
+        load();
       }
-      function editM(id){
-        const ms = Object.values(db.sections[cur].memos || {}).filter(m => m !== null);
+      function editM(secKey, id){
+        if(id === undefined) { id = secKey; secKey = cur; }
+        const ms = Object.values(db.sections[secKey].memos || {}).filter(m => m !== null);
         const m = ms.find(x => x.id == id);
         if(!m) return;
         document.getElementById('input').value = m.content;
-        editId = id; document.getElementById('saveBtn').innerText = 'Update Memo';
+        editId = id; editSec = secKey;
+        document.getElementById('input').style.display='block';
+        document.getElementById('saveBtn').style.display='inline-block';
+        document.getElementById('saveBtn').innerText = 'Update Memo';
       }
-      async function delM(id){ if(!confirm('Delete?'))return; await fetch('/api/memos/'+cur+'/'+id,{method:'DELETE'}); load(); }
+      async function delM(secKey, id){ 
+        if(id === undefined) { id = secKey; secKey = cur; }
+        if(!confirm('Delete?'))return; 
+        await fetch('/api/memos/'+secKey+'/'+id,{method:'DELETE'}); 
+        load(); 
+      }
       function copyM(secKey, id){
         if(id === undefined) { id = secKey; secKey = cur; }
         const ms = Object.values(db.sections[secKey].memos || {}).filter(m => m !== null);
