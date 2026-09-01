@@ -343,7 +343,7 @@ app.get('/', authRequired, (req, res) => {
             if (m.content && m.content.toLowerCase().includes(q)) {
               const d=document.createElement('div'); d.className='m-item';
               d.innerHTML='<div class="m-h"><span>['+(s.title?s.title.toUpperCase():secKey)+'] #'+m.id+' | '+m.date+'</span><div>' +
-                          '<button class="btn btn-c" style="padding:4px 8px;font-size:0.7rem;" onclick="copyM(\''+secKey+'\','+m.id+')">Copy</button>' +
+                          '<button class="btn btn-c" style="padding:4px 8px;font-size:0.7rem;" onclick="copyM(\\''+secKey+'\\','+m.id+')">Copy</button>' +
                           '</div></div><div class="m-b">'+esc(m.content)+'</div>';
               l.appendChild(d);
             }
@@ -357,7 +357,7 @@ app.get('/', authRequired, (req, res) => {
           const d=document.createElement('div'); d.className='m-item';
           d.innerHTML='<div class="m-h"><span>#'+m.id+' | '+m.date+'</span><div>' +
                       '<button class="btn btn-c" style="padding:4px 8px;font-size:0.7rem;" onclick="editM('+m.id+')">Edit</button>' +
-                      '<button class="btn btn-c" style="padding:4px 8px;font-size:0.7rem;" onclick="copyM(\''+cur+'\','+m.id+')">Copy</button>' +
+                      '<button class="btn btn-c" style="padding:4px 8px;font-size:0.7rem;" onclick="copyM(\\''+cur+'\\','+m.id+')">Copy</button>' +
                       '<button class="btn btn-d" style="padding:4px 8px;font-size:0.7rem;" onclick="delM('+m.id+')">Del</button></div></div>' +
                       '<div class="m-b">'+esc(m.content)+'</div>';
           l.appendChild(d);
