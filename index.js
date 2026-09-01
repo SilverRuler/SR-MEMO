@@ -8,6 +8,7 @@ const admin = require('firebase-admin');
 const rateLimit = require('express-rate-limit');
 
 const app = express();
+app.set('trust proxy', 1); // Trust first proxy (Nginx) for accurate IP in rate limiting
 const apiPort = 6000;
 const uiPort = 6001;
 
@@ -210,8 +211,9 @@ app.get('/:section', async (req, res) => {
 app.get('/:section/:id', async (req, res) => {
   const db = await getDBData();
   const s = db.sections[req.params.section.toLowerCase()];
+  if (!s) return res.status(404).send('Memo Not Found\n');
   let ms = Object.values(s.memos || {}).filter(m => m !== null);
-  const m = s && ms.length ? ms.find(x => x.id == req.params.id) : null;
+  const m = ms.length ? ms.find(x => x.id == req.params.id) : null;
   if (!m) return res.status(404).send('Memo Not Found\n');
   res.type('text/plain').send('--- MEMO #' + m.id + ' ---\n' + m.content + '\n---');
 });
