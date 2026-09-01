@@ -147,10 +147,12 @@ app.put('/api/memos/:key/:id', authRequired, async (req, res) => {
   const db = await getDBData();
   const section = db.sections[req.params.key];
   if (section && section.memos) {
-    const memo = section.memos.find(m => m.id == req.params.id);
+    let ms = Object.values(section.memos).filter(m => m !== null);
+    const memo = ms.find(m => m.id == req.params.id);
     if (memo) {
       memo.content = req.body.content;
       memo.date = new Date().toLocaleString();
+      section.memos = ms;
       await saveDBData(db);
       res.json({ success: true });
     } else res.status(404).send('Memo Not Found');
@@ -170,9 +172,10 @@ app.post('/api/memos/:key', authRequired, async (req, res) => {
   const db = await getDBData();
   const section = db.sections[req.params.key];
   if (!section) return res.status(404).send('Not found');
-  if (!section.memos) section.memos = [];
-  const id = section.memos.length > 0 ? Math.max(...section.memos.map(m => m.id)) + 1 : 1;
-  section.memos.push({ id, content: req.body.content, date: new Date().toLocaleString() });
+  let ms = Object.values(section.memos || {}).filter(m => m !== null);
+  const id = ms.length > 0 ? Math.max(...ms.map(m => m.id)) + 1 : 1;
+  ms.push({ id, content: req.body.content, date: new Date().toLocaleString() });
+  section.memos = ms;
   await saveDBData(db);
   res.json({ success: true, id });
 });
@@ -181,7 +184,8 @@ app.delete('/api/memos/:key/:id', authRequired, async (req, res) => {
   const db = await getDBData();
   const section = db.sections[req.params.key];
   if (section && section.memos) {
-    section.memos = section.memos.filter(m => m.id != req.params.id);
+    let ms = Object.values(section.memos).filter(m => m !== null);
+    section.memos = ms.filter(m => m.id != req.params.id);
     await saveDBData(db);
     res.json({ success: true });
   } else res.status(404).send('Not found');
@@ -194,7 +198,8 @@ app.get('/:section', async (req, res) => {
     const s = db.sections[req.params.section.toLowerCase()];
     if (!s) return res.status(404).send('Section Not Found\n');
     let out = '=== [' + s.title.toUpperCase() + '] ===\n';
-    (s.memos || []).slice().reverse().forEach(m => {
+    let ms = Object.values(s.memos || {}).filter(m => m !== null);
+    ms.slice().reverse().forEach(m => {
       out += '[' + m.id + '] ' + m.content.split('\n')[0].substring(0, 50) + ' (' + m.date + ')\n';
     });
     return res.type('text/plain').send(out);
@@ -205,7 +210,8 @@ app.get('/:section', async (req, res) => {
 app.get('/:section/:id', async (req, res) => {
   const db = await getDBData();
   const s = db.sections[req.params.section.toLowerCase()];
-  const m = s && s.memos ? s.memos.find(x => x.id == req.params.id) : null;
+  let ms = Object.values(s.memos || {}).filter(m => m !== null);
+  const m = s && ms.length ? ms.find(x => x.id == req.params.id) : null;
   if (!m) return res.status(404).send('Memo Not Found\n');
   res.type('text/plain').send('--- MEMO #' + m.id + ' ---\n' + m.content + '\n---');
 });
@@ -330,10 +336,11 @@ app.get('/', authRequired, (req, res) => {
         const l=document.getElementById('list'); l.innerHTML='';
         Object.keys(db.sections).forEach(secKey => {
           const s = db.sections[secKey];
-          (s.memos || []).slice().reverse().forEach(m => {
-            if (m.content.toLowerCase().includes(q)) {
+          const ms = Object.values(s.memos || {}).filter(m => m !== null);
+          ms.slice().reverse().forEach(m => {
+            if (m.content && m.content.toLowerCase().includes(q)) {
               const d=document.createElement('div'); d.className='m-item';
-              d.innerHTML='<div class="m-h"><span>['+s.title.toUpperCase()+'] #'+m.id+' | '+m.date+'</span><div>' +
+              d.innerHTML='<div class="m-h"><span>['+(s.title?s.title.toUpperCase():secKey)+'] #'+m.id+' | '+m.date+'</span><div>' +
                           '<button class="btn btn-c" style="padding:4px 8px;font-size:0.7rem;" onclick="copyM(\''+secKey+'\','+m.id+')">Copy</button>' +
                           '</div></div><div class="m-b">'+esc(m.content)+'</div>';
               l.appendChild(d);
@@ -343,7 +350,7 @@ app.get('/', authRequired, (req, res) => {
       }
       function renderM(){
         const l=document.getElementById('list'); l.innerHTML='';
-        const ms=db.sections[cur].memos || [];
+        const ms = Object.values(db.sections[cur].memos || {}).filter(m => m !== null);
         ms.slice().reverse().forEach(m=>{
           const d=document.createElement('div'); d.className='m-item';
           d.innerHTML='<div class="m-h"><span>#'+m.id+' | '+m.date+'</span><div>' +
@@ -367,7 +374,8 @@ app.get('/', authRequired, (req, res) => {
         document.getElementById('input').value=''; load();
       }
       function editM(id){
-        const m = db.sections[cur].memos.find(x => x.id == id);
+        const ms = Object.values(db.sections[cur].memos || {}).filter(m => m !== null);
+        const m = ms.find(x => x.id == id);
         if(!m) return;
         document.getElementById('input').value = m.content;
         editId = id; document.getElementById('saveBtn').innerText = 'Update Memo';
@@ -375,7 +383,8 @@ app.get('/', authRequired, (req, res) => {
       async function delM(id){ if(!confirm('Delete?'))return; await fetch('/api/memos/'+cur+'/'+id,{method:'DELETE'}); load(); }
       function copyM(secKey, id){
         if(id === undefined) { id = secKey; secKey = cur; }
-        const m = db.sections[secKey].memos.find(x => x.id == id);
+        const ms = Object.values(db.sections[secKey].memos || {}).filter(m => m !== null);
+        const m = ms.find(x => x.id == id);
         if(!m) return;
         navigator.clipboard.writeText(m.content).then(() => alert('Copied to clipboard!')).catch(() => alert('Failed to copy'));
       }
