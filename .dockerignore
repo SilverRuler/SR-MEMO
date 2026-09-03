@@ -1,0 +1,8 @@
+node_modules
+npm-debug.log
+firebase-key.json
+*.log
+memos_*.json
+.git
+Dockerfile
+.dockerignore

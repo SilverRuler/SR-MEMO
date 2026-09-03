@@ -1,0 +1,28 @@
+services:
+  memo-server:
+    build: .
+    image: silverruler/sr-memo:latest
+    container_name: sr-memo-app
+    restart: always
+    volumes:
+      - ./firebase-key.json:/usr/src/app/firebase-key.json:ro
+    expose:
+      - "6000"
+      - "6001"
+
+  nginx:
+    image: nginx:alpine
+    container_name: sr-memo-nginx
+    restart: always
+    ports:
+      - "8443:8443"
+      - "2096:2096"
+    environment:
+      - DOMAIN=memo.silverruler.xyz
+    command: /bin/sh -c "envsubst '$$DOMAIN' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && exec nginx -g 'daemon off;'"
+    volumes:
+      - ./nginx.conf.template:/etc/nginx/nginx.conf.template:ro
+      - ./cert.pem:/etc/nginx/certs/cert.pem:ro
+      - ./key.pem:/etc/nginx/certs/key.pem:ro
+    depends_on:
+      - memo-server
